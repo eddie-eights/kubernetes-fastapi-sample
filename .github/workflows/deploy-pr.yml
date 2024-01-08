@@ -9,10 +9,14 @@ on:
 env:
   REGISTRY: ghcr.io
 
-#実行されるjob
+
+
 jobs:
+# コンテナイメージ ビルド＆プッシュ
   build-and-push-image: # jobのID
-    runs-on: ubuntu-latest # jobが実行される環境
+    outputs: # job全体で使える変数　
+      IMAGE_FULL_NAME: ${{ steps.meta.outputs.tags }} 
+    runs-on: ubuntu-latest # jobが実行される環境  
     steps:
       - name: Checkout repository # リポジトリのファイルにアクセス
         uses: actions/checkout@v4 # 参照 -> https://github.com/actions/checkout
@@ -21,7 +25,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5 # 参照 -> https://github.com/docker/metadata-action
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }} # workflowが実行されるレポジトリ
+          images: ${{ env.REGISTRY }}/${{ github.repository }} # workflowが実行されるレポジトリ名
 
       - name: Log in to Github Container Registory #Github Container Registoryをイメージレジストリとして使用
         uses: docker/login-action@v3 # 参照 -> https://github.com/docker/login-action
@@ -37,3 +41,27 @@ jobs:
           push: true # ghcrにプッシュを実行
           tags: ${{ steps.meta.outputs.tags }} # コンテナイメージのタグ
           labels: ${{ steps.meta.outputs.labels }}
+
+# プッシュしたイメージでmanifestファイルを更新
+  update-kubernetes-manifest:  # jobのID
+    runs-on: ubuntu-latest
+    needs: [build-and-push-image]  # build-and-push-imageのjobが成功してから実行する
+    steps:
+      - name: Checkout repository # リポジトリのファイルにアクセス
+        uses: actions/checkout@v4 # 参照 -> https://github.com/actions/checkout
+
+      - name: Update fastapi-sample image
+        env:
+          IMAGE_FULL_NAME: ${{ needs.build-and-push-image.outputs.IMAGE_FULL_NAME }} #jobのoutputsを参照
+        run: |
+          yq -i "(.spec.template.spac.containers[] | select(.name == \"fastapi-sample\")).image = \"$IMAGE_FULL_NAME\"" manifest/fastapi-sample/deployment.yaml
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5  # 参照 -> https://github.com/peter-evans/create-pull-request
+        with:
+          base: main  # ターゲットブランチをmain
+          title: "Update fastapi-sample" # PRのタイトル
+          draft: true  # draftでPR作成
+          body: |
+            # Chages
+            - Update `fastapi-sample` image to ${{ needs.build-and-push-image.outputs.IMAGE_FULL_NAME }}
