@@ -7,7 +7,7 @@ on:
       - "app/**"
       - .github/workflows/deploy-pr.yml # 確認用
 env:
-  REGISTRY: ghrc.io
+  REGISTRY: ghcr.io
 
 #実行されるjob
 jobs:
