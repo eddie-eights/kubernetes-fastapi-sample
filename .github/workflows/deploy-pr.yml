@@ -19,7 +19,7 @@ jobs:
 
       - name: Docker meta # githubのメタ情報を取得
         id: meta
-        uses: docker/build-push-action@v5 # 参照 -> https://github.com/docker/metadata-action
+        uses: docker/metadata-action@v5 # 参照 -> https://github.com/docker/metadata-action
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }} # workflowが実行されるレポジトリ
 
